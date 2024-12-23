@@ -1,0 +1,99 @@
+:root {
+  font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+  background-color: #f5f5f5;
+}
+
+#root {
+  min-height: 100vh;
+}
+
+/* Estilos para dispositivos móveis */
+@media (max-width: 600px) {
+  .MuiContainer-root {
+    padding: 8px !important;
+  }
+  
+  .MuiDialog-paper {
+    margin: 8px !important;
+  }
+  
+  .MuiTableCell-root {
+    padding: 8px !important;
+  }
+
+  .MuiTableCell-head {
+    font-size: 0.875rem !important;
+  }
+
+  .MuiTableCell-body {
+    font-size: 0.875rem !important;
+  }
+
+  .MuiButton-root {
+    padding: 6px 12px !important;
+    font-size: 0.875rem !important;
+  }
+
+  .MuiIconButton-root {
+    padding: 8px !important;
+  }
+
+  .MuiTypography-h4 {
+    font-size: 1.5rem !important;
+  }
+
+  .MuiTypography-h5 {
+    font-size: 1.25rem !important;
+  }
+
+  .MuiTypography-h6 {
+    font-size: 1.125rem !important;
+  }
+}
+
+/* Estilos para tablets */
+@media (min-width: 601px) and (max-width: 960px) {
+  .MuiContainer-root {
+    padding: 16px !important;
+  }
+
+  .MuiTableCell-root {
+    padding: 12px !important;
+  }
+
+  .MuiTypography-h4 {
+    font-size: 1.75rem !important;
+  }
+}
+
+/* Ajustes para melhor visualização em telas pequenas */
+@media (max-width: 480px) {
+  .MuiDialog-paper {
+    margin: 0 !important;
+    max-height: 100% !important;
+    height: 100% !important;
+    border-radius: 0 !important;
+  }
+
+  .MuiTableCell-root {
+    padding: 6px !important;
+  }
+
+  .MuiButton-root {
+    width: 100% !important;
+    margin-bottom: 8px !important;
+  }
+}
