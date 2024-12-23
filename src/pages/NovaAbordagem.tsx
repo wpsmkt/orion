@@ -15,9 +15,7 @@ import {
   Dialog,
   DialogTitle,
   DialogContent,
-  DialogActions,
   Alert,
-  Fab,
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -151,7 +149,7 @@ export default function NovaAbordagem() {
     }
 
     try {
-      const pessoasSalvas = [];
+      const pessoasSalvas: Pessoa[] = [];
       for (const pessoa of pessoasTemporarias) {
         const novaPessoa = await createPessoa(pessoa);
         pessoasSalvas.push(novaPessoa);
@@ -159,11 +157,12 @@ export default function NovaAbordagem() {
 
       const pessoasFinais = pessoasSelecionadas.map(pessoa => {
         if (pessoa.id.startsWith('temp-')) {
-          return pessoasSalvas[pessoasTemporarias.findIndex(p => 
+          const pessoaSalva = pessoasSalvas[pessoasTemporarias.findIndex(p => 
             p.nome === pessoa.nome && 
             p.nomeMae === pessoa.nomeMae && 
             p.cpf === pessoa.cpf
           )];
+          return pessoaSalva;
         }
         return pessoa;
       });

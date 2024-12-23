@@ -5,15 +5,14 @@ import {
   Card,
   CardContent,
   Typography,
-  IconButton,
+  TextField,
+  Avatar,
   useTheme,
   useMediaQuery,
-  TextField,
+  CircularProgress,
   InputAdornment,
-  Avatar,
   AvatarGroup,
   Fab,
-  CircularProgress,
 } from '@mui/material';
 import {
   Add as AddIcon,

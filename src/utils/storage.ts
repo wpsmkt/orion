@@ -2,7 +2,6 @@ import { Abordagem, Pessoa } from '../types';
 
 const STORAGE_KEY = 'abordagens';
 const PESSOAS_KEY = 'pessoas';
-const MAX_ITEMS = 100;
 
 export const getPessoas = (): Pessoa[] => {
   try {

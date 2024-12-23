@@ -5,23 +5,21 @@ import {
   Card,
   CardContent,
   Typography,
-  Avatar,
   IconButton,
-  Button,
+  Avatar,
   useTheme,
   useMediaQuery,
-  Divider,
-  Grid,
   CircularProgress,
+  Grid,
   Alert,
+  Divider,
 } from '@mui/material';
 import {
   ArrowBack as ArrowBackIcon,
   AccountCircle as AccountCircleIcon,
-  Edit as EditIcon,
-  Share as ShareIcon,
+  LocationOn as LocationOnIcon,
+  AccessTime as AccessTimeIcon,
   Delete as DeleteIcon,
-  Hub as HubIcon,
 } from '@mui/icons-material';
 import { getPessoaById, getAbordagensByPessoa, deletePessoa } from '../services/supabaseService';
 import { Pessoa, Abordagem } from '../types';
@@ -126,10 +124,10 @@ export default function DetalhePessoa() {
             Detalhes da Pessoa
           </Typography>
           <IconButton onClick={() => setOpenGraph(true)}>
-            <HubIcon />
+            <LocationOnIcon />
           </IconButton>
           <IconButton color="primary" onClick={() => navigate(`/pessoa/${id}/edit`)}>
-            <EditIcon />
+            <AccessTimeIcon />
           </IconButton>
           <IconButton color="error" onClick={() => setOpenDeleteDialog(true)}>
             <DeleteIcon />

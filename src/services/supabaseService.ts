@@ -1,323 +1,254 @@
 import { supabase } from '../lib/supabase';
 import { Pessoa, Abordagem, Veiculo } from '../types';
 
+interface PessoaRow {
+  id: string;
+  nome: string;
+  nome_mae: string;
+  nome_pai: string;
+  data_nascimento: string;
+  rg: string;
+  cpf: string;
+  endereco: string;
+  foto_perfil: string;
+  fotos: string[];
+  veiculos: Veiculo[];
+  anotacoes: string;
+}
+
 interface AbordagemRow {
   id: string;
   timestamp: string;
-  logradouro: string;
-  numero: string;
-  bairro: string;
-  latitude?: number;
-  longitude?: number;
-  abordagens_pessoas: Array<{
-    pessoas: Pessoa & {
-      veiculos: Veiculo[];
-    };
-  }>;
+  local: {
+    logradouro: string;
+    numero: string;
+    bairro: string;
+    latitude?: number;
+    longitude?: number;
+  };
+  pessoas: string[];
 }
 
-interface AbordagemPessoaRow {
-  abordagem: AbordagemRow;
+// Funções de conversão
+function convertPessoaRowToPessoa(row: PessoaRow): Pessoa {
+  return {
+    id: row.id,
+    nome: row.nome,
+    nomeMae: row.nome_mae,
+    nomePai: row.nome_pai,
+    dataNascimento: row.data_nascimento,
+    rg: row.rg,
+    cpf: row.cpf,
+    endereco: row.endereco,
+    fotoPerfil: row.foto_perfil,
+    fotos: row.fotos,
+    veiculos: row.veiculos,
+    anotacoes: row.anotacoes,
+  };
 }
 
-// Funções para Pessoas
-export const getPessoas = async () => {
-  const { data, error } = await supabase
-    .from('pessoas')
-    .select(`
-      *,
-      veiculos (*)
-    `);
-  
-  if (error) throw error;
-  return data;
-};
+function convertPessoaToPessoaRow(pessoa: Omit<Pessoa, 'id'>): Omit<PessoaRow, 'id'> {
+  return {
+    nome: pessoa.nome || '',
+    nome_mae: pessoa.nomeMae || '',
+    nome_pai: pessoa.nomePai || '',
+    data_nascimento: pessoa.dataNascimento || '',
+    rg: pessoa.rg || '',
+    cpf: pessoa.cpf || '',
+    endereco: pessoa.endereco || '',
+    foto_perfil: pessoa.fotoPerfil || '',
+    fotos: pessoa.fotos || [],
+    veiculos: pessoa.veiculos || [],
+    anotacoes: pessoa.anotacoes || '',
+  };
+}
 
-export const getPessoaById = async (id: string) => {
+// Funções de serviço
+export async function getPessoas(): Promise<Pessoa[]> {
   const { data, error } = await supabase
     .from('pessoas')
-    .select(`
-      *,
-      veiculos (*)
-    `)
+    .select('*')
+    .order('nome');
+
+  if (error) throw error;
+
+  return (data as PessoaRow[]).map(convertPessoaRowToPessoa);
+}
+
+export async function getPessoaById(id: string): Promise<Pessoa | null> {
+  const { data, error } = await supabase
+    .from('pessoas')
+    .select('*')
     .eq('id', id)
     .single();
-  
-  if (error) throw error;
-  return data;
-};
 
-export const createPessoa = async (pessoa: Omit<Pessoa, 'id'>) => {
-  const { data, error } = await supabase
-    .from('pessoas')
-    .insert({
-      nome: pessoa.nome,
-      nome_mae: pessoa.nomeMae,
-      nome_pai: pessoa.nomePai,
-      data_nascimento: pessoa.dataNascimento,
-      rg: pessoa.rg,
-      cpf: pessoa.cpf,
-      endereco: pessoa.endereco,
-      foto_perfil: pessoa.fotoPerfil,
-      fotos: pessoa.fotos,
-      anotacoes: pessoa.anotacoes
-    })
-    .select()
-    .single();
-
-  if (error) throw error;
-  return data;
-};
-
-export const updatePessoa = async (id: string, pessoa: Partial<Omit<Pessoa, 'id'>>) => {
-  const { data, error } = await supabase
-    .from('pessoas')
-    .update({
-      nome: pessoa.nome,
-      nome_mae: pessoa.nomeMae,
-      nome_pai: pessoa.nomePai,
-      data_nascimento: pessoa.dataNascimento,
-      rg: pessoa.rg,
-      cpf: pessoa.cpf,
-      endereco: pessoa.endereco,
-      foto_perfil: pessoa.fotoPerfil,
-      fotos: pessoa.fotos,
-      anotacoes: pessoa.anotacoes
-    })
-    .eq('id', id)
-    .select()
-    .single();
-
-  if (error) throw error;
-  return data;
-};
-
-export const deletePessoa = async (id: string) => {
-  const { error } = await supabase
-    .from('pessoas')
-    .delete()
-    .eq('id', id);
-
-  if (error) throw error;
-};
-
-// Funções para Veículos
-export const createVeiculo = async (veiculo: Veiculo & { pessoa_id: string }) => {
-  const { data, error } = await supabase
-    .from('veiculos')
-    .insert({
-      pessoa_id: veiculo.pessoa_id,
-      marca: veiculo.marca,
-      modelo: veiculo.modelo,
-      cor: veiculo.cor
-    })
-    .select()
-    .single();
-
-  if (error) throw error;
-  return data;
-};
-
-export const deleteVeiculo = async (id: string) => {
-  const { error } = await supabase
-    .from('veiculos')
-    .delete()
-    .eq('id', id);
-
-  if (error) throw error;
-};
-
-// Funções para Abordagens
-export const getAbordagens = async () => {
-  const { data, error } = await supabase
-    .from('abordagens')
-    .select(`
-      *,
-      abordagens_pessoas (
-        pessoas (
-          *,
-          veiculos (*)
-        )
-      )
-    `);
-  
-  if (error) throw error;
-
-  // Transforma os dados para o formato esperado
-  return data.map(item => {
-    const abordagem = item as unknown as AbordagemRow;
-    return {
-      id: abordagem.id,
-      timestamp: abordagem.timestamp,
-      local: {
-        logradouro: abordagem.logradouro,
-        numero: abordagem.numero,
-        bairro: abordagem.bairro,
-        latitude: abordagem.latitude,
-        longitude: abordagem.longitude
-      },
-      pessoas: (abordagem.abordagens_pessoas || []).map(ap => ({
-        ...ap.pessoas,
-        veiculos: ap.pessoas.veiculos || []
-      }))
-    };
-  });
-};
-
-export const getAbordagemById = async (id: string) => {
-  const { data, error } = await supabase
-    .from('abordagens')
-    .select(`
-      *,
-      abordagens_pessoas (
-        pessoas (
-          *,
-          veiculos (*)
-        )
-      )
-    `)
-    .eq('id', id)
-    .single();
-  
   if (error) throw error;
   if (!data) return null;
 
-  // Transforma os dados para o formato esperado
-  const abordagem = data as unknown as AbordagemRow;
-  return {
-    id: abordagem.id,
-    timestamp: abordagem.timestamp,
-    local: {
-      logradouro: abordagem.logradouro,
-      numero: abordagem.numero,
-      bairro: abordagem.bairro,
-      latitude: abordagem.latitude,
-      longitude: abordagem.longitude
-    },
-    pessoas: (abordagem.abordagens_pessoas || []).map(ap => ({
-      ...ap.pessoas,
-      veiculos: ap.pessoas.veiculos || []
-    }))
-  };
-};
+  return convertPessoaRowToPessoa(data as PessoaRow);
+}
 
-export const createAbordagem = async (abordagem: Omit<Abordagem, 'id'>) => {
-  const { data: abordagemData, error: abordagemError } = await supabase
-    .from('abordagens')
-    .insert({
-      timestamp: abordagem.timestamp,
-      logradouro: abordagem.local.logradouro,
-      numero: abordagem.local.numero,
-      bairro: abordagem.local.bairro,
-      latitude: abordagem.local.latitude,
-      longitude: abordagem.local.longitude
-    })
+export async function createPessoa(pessoa: Omit<Pessoa, 'id'>): Promise<Pessoa> {
+  const { data, error } = await supabase
+    .from('pessoas')
+    .insert([convertPessoaToPessoaRow(pessoa)])
     .select()
     .single();
 
-  if (abordagemError) throw abordagemError;
+  if (error) throw error;
 
-  // Criar relações com pessoas
-  const abordagensPessoas = abordagem.pessoas.map(pessoa => ({
-    abordagem_id: abordagemData.id,
-    pessoa_id: pessoa.id
-  }));
+  return convertPessoaRowToPessoa(data as PessoaRow);
+}
 
-  const { error: relationError } = await supabase
-    .from('abordagens_pessoas')
-    .insert(abordagensPessoas);
-
-  if (relationError) throw relationError;
-
-  return abordagemData;
-};
-
-export const updateAbordagem = async (id: string, abordagem: Partial<Omit<Abordagem, 'id'>>) => {
-  const { data: abordagemData, error: abordagemError } = await supabase
-    .from('abordagens')
-    .update({
-      timestamp: abordagem.timestamp,
-      logradouro: abordagem.local?.logradouro,
-      numero: abordagem.local?.numero,
-      bairro: abordagem.local?.bairro,
-      latitude: abordagem.local?.latitude,
-      longitude: abordagem.local?.longitude
-    })
+export async function updatePessoa(id: string, pessoa: Omit<Pessoa, 'id'>): Promise<Pessoa> {
+  const { data, error } = await supabase
+    .from('pessoas')
+    .update(convertPessoaToPessoaRow(pessoa))
     .eq('id', id)
     .select()
     .single();
 
+  if (error) throw error;
+
+  return convertPessoaRowToPessoa(data as PessoaRow);
+}
+
+export async function deletePessoa(id: string): Promise<void> {
+  const { error } = await supabase
+    .from('pessoas')
+    .delete()
+    .eq('id', id);
+
+  if (error) throw error;
+}
+
+export async function getAbordagens(): Promise<Abordagem[]> {
+  const { data: abordagensData, error: abordagensError } = await supabase
+    .from('abordagens')
+    .select('*')
+    .order('timestamp', { ascending: false });
+
+  if (abordagensError) throw abordagensError;
+
+  const abordagens = abordagensData as AbordagemRow[];
+  const pessoasIds = new Set<string>();
+  abordagens.forEach(abordagem => {
+    abordagem.pessoas.forEach(id => pessoasIds.add(id));
+  });
+
+  const { data: pessoasData, error: pessoasError } = await supabase
+    .from('pessoas')
+    .select('*')
+    .in('id', Array.from(pessoasIds));
+
+  if (pessoasError) throw pessoasError;
+
+  const pessoasMap = new Map<string, Pessoa>();
+  (pessoasData as PessoaRow[]).forEach(pessoa => {
+    pessoasMap.set(pessoa.id, convertPessoaRowToPessoa(pessoa));
+  });
+
+  return abordagens.map(abordagem => ({
+    id: abordagem.id,
+    timestamp: abordagem.timestamp,
+    local: abordagem.local,
+    pessoas: abordagem.pessoas
+      .map(id => pessoasMap.get(id))
+      .filter((pessoa): pessoa is Pessoa => pessoa !== undefined),
+  }));
+}
+
+export async function getAbordagemById(id: string): Promise<Abordagem | null> {
+  const { data: abordagemData, error: abordagemError } = await supabase
+    .from('abordagens')
+    .select('*')
+    .eq('id', id)
+    .single();
+
   if (abordagemError) throw abordagemError;
+  if (!abordagemData) return null;
 
-  if (abordagem.pessoas) {
-    // Remover relações antigas
-    const { error: deleteError } = await supabase
-      .from('abordagens_pessoas')
-      .delete()
-      .eq('abordagem_id', id);
+  const abordagem = abordagemData as AbordagemRow;
+  const { data: pessoasData, error: pessoasError } = await supabase
+    .from('pessoas')
+    .select('*')
+    .in('id', abordagem.pessoas);
 
-    if (deleteError) throw deleteError;
+  if (pessoasError) throw pessoasError;
 
-    // Criar novas relações
-    const abordagensPessoas = abordagem.pessoas.map(pessoa => ({
-      abordagem_id: id,
-      pessoa_id: pessoa.id
-    }));
+  return {
+    id: abordagem.id,
+    timestamp: abordagem.timestamp,
+    local: abordagem.local,
+    pessoas: (pessoasData as PessoaRow[]).map(convertPessoaRowToPessoa),
+  };
+}
 
-    const { error: relationError } = await supabase
-      .from('abordagens_pessoas')
-      .insert(abordagensPessoas);
+export async function getAbordagensByPessoa(pessoaId: string): Promise<Abordagem[]> {
+  const { data: abordagensData, error: abordagensError } = await supabase
+    .from('abordagens')
+    .select('*')
+    .contains('pessoas', [pessoaId])
+    .order('timestamp', { ascending: false });
 
-    if (relationError) throw relationError;
-  }
+  if (abordagensError) throw abordagensError;
 
-  return abordagemData;
-};
+  const abordagens = abordagensData as AbordagemRow[];
+  const pessoasIds = new Set<string>();
+  abordagens.forEach(abordagem => {
+    abordagem.pessoas.forEach(id => pessoasIds.add(id));
+  });
 
-export const deleteAbordagem = async (id: string) => {
+  const { data: pessoasData, error: pessoasError } = await supabase
+    .from('pessoas')
+    .select('*')
+    .in('id', Array.from(pessoasIds));
+
+  if (pessoasError) throw pessoasError;
+
+  const pessoasMap = new Map<string, Pessoa>();
+  (pessoasData as PessoaRow[]).forEach(pessoa => {
+    pessoasMap.set(pessoa.id, convertPessoaRowToPessoa(pessoa));
+  });
+
+  return abordagens.map(abordagem => ({
+    id: abordagem.id,
+    timestamp: abordagem.timestamp,
+    local: abordagem.local,
+    pessoas: abordagem.pessoas
+      .map(id => pessoasMap.get(id))
+      .filter((pessoa): pessoa is Pessoa => pessoa !== undefined),
+  }));
+}
+
+export async function createAbordagem(abordagem: Omit<Abordagem, 'id'>): Promise<Abordagem> {
+  const abordagemRow: Omit<AbordagemRow, 'id'> = {
+    timestamp: abordagem.timestamp,
+    local: abordagem.local,
+    pessoas: abordagem.pessoas.map(pessoa => pessoa.id),
+  };
+
+  const { data, error } = await supabase
+    .from('abordagens')
+    .insert([abordagemRow])
+    .select()
+    .single();
+
+  if (error) throw error;
+
+  return {
+    id: data.id,
+    timestamp: data.timestamp,
+    local: data.local,
+    pessoas: abordagem.pessoas,
+  };
+}
+
+export async function deleteAbordagem(id: string): Promise<void> {
   const { error } = await supabase
     .from('abordagens')
     .delete()
     .eq('id', id);
 
   if (error) throw error;
-};
-
-export const getAbordagensByPessoa = async (pessoaId: string) => {
-  const { data, error } = await supabase
-    .from('abordagens_pessoas')
-    .select(`
-      abordagem:abordagens (
-        *,
-        abordagens_pessoas (
-          pessoas (
-            *,
-            veiculos (*)
-          )
-        )
-      )
-    `)
-    .eq('pessoa_id', pessoaId);
-
-  if (error) throw error;
-
-  // Transforma os dados para o formato esperado
-  return data.map(item => {
-    const abordagem = item.abordagem as unknown as AbordagemRow;
-    return {
-      id: abordagem.id,
-      timestamp: abordagem.timestamp,
-      local: {
-        logradouro: abordagem.logradouro,
-        numero: abordagem.numero,
-        bairro: abordagem.bairro,
-        latitude: abordagem.latitude,
-        longitude: abordagem.longitude
-      },
-      pessoas: (abordagem.abordagens_pessoas || []).map(ap => ({
-        ...ap.pessoas,
-        veiculos: ap.pessoas.veiculos || []
-      }))
-    };
-  });
-}; 
+} 

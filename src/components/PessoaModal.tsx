@@ -7,16 +7,15 @@ import {
   Button,
   TextField,
   Box,
-  IconButton,
   Grid,
   Typography,
   Avatar,
-  FormHelperText
+  IconButton,
 } from '@mui/material';
 import { Add as AddIcon, Delete as DeleteIcon, PhotoCamera } from '@mui/icons-material';
 import { Pessoa, Veiculo } from '../types';
 import { validateCPF, validateRG, formatCPF, formatRG } from '../utils/validation';
-import { compressImage } from '../utils/imageCompression';
+import { supabase } from '../lib/supabase';
 
 interface PessoaModalProps {
   open: boolean;
@@ -31,9 +30,12 @@ const emptyPessoa: Pessoa = {
   nomeMae: '',
   nomePai: '',
   dataNascimento: '',
+  rg: '',
+  cpf: '',
+  endereco: '',
+  fotoPerfil: '',
   fotos: [],
   veiculos: [],
-  fotoPerfil: '',
   anotacoes: ''
 };
 
@@ -46,7 +48,10 @@ const emptyVeiculo: Veiculo = {
 export default function PessoaModal({ open, onClose, onSave, pessoa }: PessoaModalProps) {
   const [formData, setFormData] = useState<Pessoa>(emptyPessoa);
   const [novoVeiculo, setNovoVeiculo] = useState<Veiculo>(emptyVeiculo);
-  const [errors, setErrors] = useState({
+  const [errors, setErrors] = useState<{
+    cpf: string;
+    rg: string;
+  }>({
     cpf: '',
     rg: ''
   });
@@ -55,41 +60,40 @@ export default function PessoaModal({ open, onClose, onSave, pessoa }: PessoaMod
     if (pessoa) {
       setFormData(pessoa);
     } else {
-      setFormData({ ...emptyPessoa, id: Date.now().toString() });
+      setFormData(emptyPessoa);
     }
-    setErrors({ cpf: '', rg: '' });
-    setNovoVeiculo(emptyVeiculo);
-  }, [pessoa, open]);
+  }, [pessoa]);
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target;
+  const handleInputChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = event.target;
     let formattedValue = value;
 
+    // Formatação e validação específica para CPF e RG
     if (name === 'cpf') {
       formattedValue = formatCPF(value);
-      setErrors(prev => ({
+      setErrors((prev) => ({
         ...prev,
         cpf: value && !validateCPF(value) ? 'CPF inválido' : ''
       }));
     } else if (name === 'rg') {
       formattedValue = formatRG(value);
-      setErrors(prev => ({
+      setErrors((prev) => ({
         ...prev,
         rg: value && !validateRG(value) ? 'RG inválido' : ''
       }));
     }
 
-    setFormData(prev => ({ ...prev, [name]: formattedValue }));
+    setFormData((prev) => ({ ...prev, [name]: formattedValue }));
   };
 
-  const handleVeiculoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target;
-    setNovoVeiculo(prev => ({ ...prev, [name]: value }));
+  const handleVeiculoChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = event.target;
+    setNovoVeiculo((prev) => ({ ...prev, [name]: value }));
   };
 
   const handleAddVeiculo = () => {
-    if (novoVeiculo.marca && novoVeiculo.modelo) {
-      setFormData(prev => ({
+    if (novoVeiculo.marca && novoVeiculo.modelo && novoVeiculo.cor) {
+      setFormData((prev) => ({
         ...prev,
         veiculos: [...prev.veiculos, novoVeiculo]
       }));
@@ -98,91 +102,208 @@ export default function PessoaModal({ open, onClose, onSave, pessoa }: PessoaMod
   };
 
   const handleRemoveVeiculo = (index: number) => {
-    setFormData(prev => ({
+    setFormData((prev) => ({
       ...prev,
       veiculos: prev.veiculos.filter((_, i) => i !== index)
     }));
   };
 
-  const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (file) {
+  const handlePhotoUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = event.target.files;
+    if (files) {
       try {
-        const reader = new FileReader();
-        reader.onloadend = async () => {
-          const base64String = reader.result as string;
-          // Comprimir a imagem antes de salvar
-          const compressedImage = await compressImage(base64String);
-          setFormData(prev => ({
-            ...prev,
-            fotos: [...prev.fotos, compressedImage],
-            fotoPerfil: prev.fotoPerfil || compressedImage
-          }));
-        };
-        reader.readAsDataURL(file);
+        const uploadedUrls: string[] = [];
+        for (let i = 0; i < files.length; i++) {
+          const file = files[i];
+          const fileExt = file.name.split('.').pop();
+          const fileName = `${Math.random()}.${fileExt}`;
+          const filePath = `fotos/${fileName}`;
+
+          // Upload do arquivo para o Supabase Storage
+          const { error } = await supabase.storage
+            .from('pessoas')
+            .upload(filePath, file);
+
+          if (error) throw error;
+
+          // Gera URL pública do arquivo
+          const { data: { publicUrl } } = supabase.storage
+            .from('pessoas')
+            .getPublicUrl(filePath);
+
+          uploadedUrls.push(publicUrl);
+        }
+
+        setFormData((prev) => ({
+          ...prev,
+          fotos: [...prev.fotos, ...uploadedUrls],
+        }));
       } catch (error) {
-        console.error('Erro ao processar imagem:', error);
+        console.error('Erro ao fazer upload das fotos:', error);
       }
     }
   };
 
-  const handleSetFotoPerfil = (foto: string) => {
-    setFormData(prev => ({ ...prev, fotoPerfil: foto }));
+  const handleSetProfilePhoto = (url: string) => {
+    setFormData((prev) => ({
+      ...prev,
+      fotoPerfil: url
+    }));
   };
 
-  const handleRemoveFoto = (index: number) => {
-    setFormData(prev => {
-      const novasFotos = prev.fotos.filter((_, i) => i !== index);
-      return {
+  const handleRemovePhoto = async (url: string) => {
+    try {
+      // Extrai o nome do arquivo da URL
+      const filePath = url.split('/').pop();
+      if (!filePath) return;
+
+      // Remove o arquivo do Supabase Storage
+      const { error } = await supabase.storage
+        .from('pessoas')
+        .remove([`fotos/${filePath}`]);
+
+      if (error) throw error;
+
+      // Atualiza o estado removendo a foto
+      setFormData((prev) => ({
         ...prev,
-        fotos: novasFotos,
-        fotoPerfil: prev.fotoPerfil === prev.fotos[index] ? (novasFotos[0] || '') : prev.fotoPerfil
-      };
-    });
+        fotos: prev.fotos.filter((foto) => foto !== url),
+        fotoPerfil: prev.fotoPerfil === url ? '' : prev.fotoPerfil
+      }));
+    } catch (error) {
+      console.error('Erro ao deletar foto:', error);
+    }
   };
 
-  const handleSubmit = () => {
-    if (formData.cpf && !validateCPF(formData.cpf)) {
-      setErrors(prev => ({ ...prev, cpf: 'CPF inválido' }));
-      return;
-    }
-    if (formData.rg && !validateRG(formData.rg)) {
-      setErrors(prev => ({ ...prev, rg: 'RG inválido' }));
+  const handleSave = () => {
+    // Validações
+    if (!formData.nome) {
       return;
     }
 
-    // Se tiver dados de veículo preenchidos, adiciona à lista antes de salvar
-    if (novoVeiculo.marca || novoVeiculo.modelo || novoVeiculo.cor) {
-      const dadosFinais = {
-        ...formData,
-        veiculos: [...formData.veiculos, novoVeiculo]
-      };
-      onSave(dadosFinais);
-    } else {
-      onSave(formData);
+    if (formData.cpf && !validateCPF(formData.cpf)) {
+      setErrors((prev) => ({ ...prev, cpf: 'CPF inválido' }));
+      return;
     }
+
+    if (formData.rg && !validateRG(formData.rg)) {
+      setErrors((prev) => ({ ...prev, rg: 'RG inválido' }));
+      return;
+    }
+
+    onSave(formData);
   };
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
       <DialogTitle>
-        <Box display="flex" flexDirection="column" alignItems="center" mb={2}>
-          <Avatar
-            src={formData.fotoPerfil}
-            sx={{ 
-              width: 120, 
-              height: 120,
-              mb: 1
-            }}
-          />
-          <Typography variant="h6">
-            {pessoa ? 'Editar Pessoa' : 'Adicionar Nova Pessoa'}
-          </Typography>
-        </Box>
+        {pessoa ? 'Editar Pessoa' : 'Nova Pessoa'}
       </DialogTitle>
-      
       <DialogContent>
-        <Box component="form" noValidate sx={{ mt: 2 }}>
+        <Box sx={{ mt: 2, display: 'grid', gap: 2 }}>
+          {/* Foto de Perfil */}
+          <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+            <Avatar
+              src={formData.fotoPerfil}
+              sx={{
+                width: 120,
+                height: 120,
+                mb: 1
+              }}
+            />
+            <Typography variant="caption" color="text.secondary">
+              {formData.fotoPerfil ? 'Foto de perfil selecionada' : 'Nenhuma foto de perfil selecionada'}
+            </Typography>
+          </Box>
+
+          {/* Fotos */}
+          <Box>
+            <Typography variant="subtitle1" gutterBottom>
+              Fotos
+            </Typography>
+            <input
+              accept="image/*"
+              style={{ display: 'none' }}
+              id="fotos-input"
+              type="file"
+              multiple
+              onChange={handlePhotoUpload}
+            />
+            <label htmlFor="fotos-input">
+              <Button
+                variant="outlined"
+                component="span"
+                startIcon={<PhotoCamera />}
+                fullWidth
+              >
+                Adicionar Fotos
+              </Button>
+            </label>
+
+            <Box sx={{ mt: 2, display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(100px, 1fr))', gap: 1 }}>
+              {formData.fotos.map((foto: string, index: number) => (
+                <Box
+                  key={index}
+                  sx={{
+                    position: 'relative',
+                    paddingTop: '100%',
+                    '&:hover .actions': {
+                      opacity: 1
+                    }
+                  }}
+                >
+                  <Box
+                    component="img"
+                    src={foto}
+                    alt={`Foto ${index + 1}`}
+                    sx={{
+                      position: 'absolute',
+                      top: 0,
+                      left: 0,
+                      width: '100%',
+                      height: '100%',
+                      objectFit: 'cover',
+                      borderRadius: 1
+                    }}
+                  />
+                  <Box
+                    className="actions"
+                    sx={{
+                      position: 'absolute',
+                      top: 0,
+                      left: 0,
+                      right: 0,
+                      bottom: 0,
+                      display: 'flex',
+                      flexDirection: 'column',
+                      justifyContent: 'center',
+                      alignItems: 'center',
+                      background: 'rgba(0, 0, 0, 0.5)',
+                      opacity: 0,
+                      transition: 'opacity 0.2s',
+                      borderRadius: 1
+                    }}
+                  >
+                    <IconButton
+                      size="small"
+                      onClick={() => handleSetProfilePhoto(foto)}
+                      sx={{ color: 'white', mb: 1 }}
+                    >
+                      <AddIcon />
+                    </IconButton>
+                    <IconButton
+                      size="small"
+                      onClick={() => handleRemovePhoto(foto)}
+                      sx={{ color: 'white' }}
+                    >
+                      <DeleteIcon />
+                    </IconButton>
+                  </Box>
+                </Box>
+              ))}
+            </Box>
+          </Box>
+
           {/* Dados Pessoais */}
           <Grid container spacing={2}>
             <Grid item xs={12}>
@@ -192,9 +313,10 @@ export default function PessoaModal({ open, onClose, onSave, pessoa }: PessoaMod
                 name="nome"
                 value={formData.nome}
                 onChange={handleInputChange}
+                required
               />
             </Grid>
-            <Grid item xs={12}>
+            <Grid item xs={12} sm={6}>
               <TextField
                 fullWidth
                 label="Nome da Mãe"
@@ -203,7 +325,7 @@ export default function PessoaModal({ open, onClose, onSave, pessoa }: PessoaMod
                 onChange={handleInputChange}
               />
             </Grid>
-            <Grid item xs={12}>
+            <Grid item xs={12} sm={6}>
               <TextField
                 fullWidth
                 label="Nome do Pai"
@@ -215,9 +337,9 @@ export default function PessoaModal({ open, onClose, onSave, pessoa }: PessoaMod
             <Grid item xs={12} sm={6}>
               <TextField
                 fullWidth
-                type="date"
                 label="Data de Nascimento"
                 name="dataNascimento"
+                type="date"
                 value={formData.dataNascimento}
                 onChange={handleInputChange}
                 InputLabelProps={{ shrink: true }}
@@ -228,18 +350,18 @@ export default function PessoaModal({ open, onClose, onSave, pessoa }: PessoaMod
                 fullWidth
                 label="RG"
                 name="rg"
-                value={formData.rg || ''}
+                value={formData.rg}
                 onChange={handleInputChange}
                 error={!!errors.rg}
                 helperText={errors.rg}
               />
             </Grid>
-            <Grid item xs={12}>
+            <Grid item xs={12} sm={6}>
               <TextField
                 fullWidth
                 label="CPF"
                 name="cpf"
-                value={formData.cpf || ''}
+                value={formData.cpf}
                 onChange={handleInputChange}
                 error={!!errors.cpf}
                 helperText={errors.cpf}
@@ -250,67 +372,28 @@ export default function PessoaModal({ open, onClose, onSave, pessoa }: PessoaMod
                 fullWidth
                 label="Endereço"
                 name="endereco"
-                value={formData.endereco || ''}
+                value={formData.endereco}
                 onChange={handleInputChange}
+              />
+            </Grid>
+            <Grid item xs={12}>
+              <TextField
+                fullWidth
+                label="Anotações"
+                name="anotacoes"
+                value={formData.anotacoes}
+                onChange={handleInputChange}
+                multiline
+                rows={4}
               />
             </Grid>
           </Grid>
 
-          {/* Fotos */}
-          <Box mt={3}>
-            <Typography variant="h6" gutterBottom>Fotos da Abordagem</Typography>
-            <input
-              accept="image/*"
-              style={{ display: 'none' }}
-              id="foto-button-file"
-              type="file"
-              onChange={handleFileChange}
-            />
-            <label htmlFor="foto-button-file">
-              <Button
-                variant="contained"
-                component="span"
-                startIcon={<PhotoCamera />}
-              >
-                Adicionar Foto
-              </Button>
-            </label>
-
-            <Grid container spacing={2} mt={2}>
-              {formData.fotos.map((foto, index) => (
-                <Grid item key={index}>
-                  <Box position="relative">
-                    <Avatar
-                      src={foto}
-                      sx={{ 
-                        width: 100, 
-                        height: 100, 
-                        cursor: 'pointer',
-                        border: foto === formData.fotoPerfil ? '2px solid #1976d2' : 'none'
-                      }}
-                      onClick={() => handleSetFotoPerfil(foto)}
-                    />
-                    {foto === formData.fotoPerfil && (
-                      <Typography variant="caption" color="primary" align="center" display="block">
-                        Foto de Perfil
-                      </Typography>
-                    )}
-                    <IconButton
-                      size="small"
-                      onClick={() => handleRemoveFoto(index)}
-                      sx={{ position: 'absolute', top: 0, right: 0 }}
-                    >
-                      <DeleteIcon />
-                    </IconButton>
-                  </Box>
-                </Grid>
-              ))}
-            </Grid>
-          </Box>
-
           {/* Veículos */}
-          <Box mt={3}>
-            <Typography variant="h6" gutterBottom>Veículos</Typography>
+          <Box>
+            <Typography variant="subtitle1" gutterBottom>
+              Veículos
+            </Typography>
             <Grid container spacing={2}>
               <Grid item xs={12} sm={4}>
                 <TextField
@@ -330,7 +413,7 @@ export default function PessoaModal({ open, onClose, onSave, pessoa }: PessoaMod
                   onChange={handleVeiculoChange}
                 />
               </Grid>
-              <Grid item xs={12} sm={3}>
+              <Grid item xs={12} sm={4}>
                 <TextField
                   fullWidth
                   label="Cor"
@@ -339,51 +422,53 @@ export default function PessoaModal({ open, onClose, onSave, pessoa }: PessoaMod
                   onChange={handleVeiculoChange}
                 />
               </Grid>
-              <Grid item xs={12} sm={1}>
-                <IconButton 
+              <Grid item xs={12}>
+                <Button
+                  variant="outlined"
+                  startIcon={<AddIcon />}
                   onClick={handleAddVeiculo}
-                  title="Adicionar mais um veículo"
-                  aria-label="Adicionar mais um veículo"
+                  disabled={!novoVeiculo.marca || !novoVeiculo.modelo || !novoVeiculo.cor}
                 >
-                  <AddIcon />
-                </IconButton>
+                  Adicionar Veículo
+                </Button>
               </Grid>
             </Grid>
 
-            {formData.veiculos.map((veiculo, index) => (
-              <Box key={index} mt={1} display="flex" alignItems="center">
-                <Typography>
-                  {veiculo.marca} {veiculo.modelo} - {veiculo.cor}
-                </Typography>
-                <IconButton size="small" onClick={() => handleRemoveVeiculo(index)}>
+            {formData.veiculos.map((veiculo: Veiculo, index: number) => (
+              <Box
+                key={index}
+                sx={{
+                  mt: 2,
+                  p: 2,
+                  border: 1,
+                  borderColor: 'divider',
+                  borderRadius: 1,
+                  display: 'flex',
+                  alignItems: 'center'
+                }}
+              >
+                <Box sx={{ flexGrow: 1 }}>
+                  <Typography variant="subtitle2">
+                    {veiculo.marca} {veiculo.modelo}
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    Cor: {veiculo.cor}
+                  </Typography>
+                </Box>
+                <IconButton
+                  size="small"
+                  onClick={() => handleRemoveVeiculo(index)}
+                >
                   <DeleteIcon />
                 </IconButton>
               </Box>
             ))}
           </Box>
-
-          {/* Anotações */}
-          <Box mt={3}>
-            <TextField
-              fullWidth
-              multiline
-              rows={4}
-              label="Anotações"
-              name="anotacoes"
-              value={formData.anotacoes || ''}
-              onChange={handleInputChange}
-            />
-          </Box>
         </Box>
       </DialogContent>
-
       <DialogActions>
         <Button onClick={onClose}>Cancelar</Button>
-        <Button
-          onClick={handleSubmit}
-          variant="contained"
-          disabled={!!errors.cpf || !!errors.rg}
-        >
+        <Button onClick={handleSave} variant="contained" color="primary">
           Salvar
         </Button>
       </DialogActions>

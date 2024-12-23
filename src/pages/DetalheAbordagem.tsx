@@ -5,20 +5,18 @@ import {
   Card,
   CardContent,
   Typography,
-  Avatar,
   IconButton,
-  Button,
+  Avatar,
   useTheme,
   useMediaQuery,
+  CircularProgress,
   Dialog,
   DialogTitle,
   DialogContent,
   DialogActions,
-  Checkbox,
-  FormControlLabel,
-  Divider,
-  CircularProgress,
+  Button,
   Alert,
+  Divider,
 } from '@mui/material';
 import {
   ArrowBack as ArrowBackIcon,
@@ -30,7 +28,7 @@ import {
   Delete as DeleteIcon,
 } from '@mui/icons-material';
 import { getAbordagemById, deleteAbordagem } from '../services/supabaseService';
-import { Abordagem, Pessoa } from '../types';
+import { Abordagem } from '../types';
 import ConfirmDialog from '../components/ConfirmDialog';
 
 export default function DetalheAbordagem() {
@@ -41,7 +39,6 @@ export default function DetalheAbordagem() {
   const [abordagem, setAbordagem] = useState<Abordagem | null>(null);
   const [openShareDialog, setOpenShareDialog] = useState(false);
   const [openDeleteDialog, setOpenDeleteDialog] = useState(false);
-  const [selectedPhotos, setSelectedPhotos] = useState<{ [key: string]: string[] }>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -62,14 +59,6 @@ export default function DetalheAbordagem() {
         return;
       }
 
-      // Inicializa o estado de fotos selecionadas
-      const initialSelectedPhotos: { [key: string]: string[] } = {};
-      if (data.pessoas && Array.isArray(data.pessoas)) {
-        data.pessoas.forEach((pessoa: Pessoa) => {
-          initialSelectedPhotos[pessoa.id] = [];
-        });
-      }
-      setSelectedPhotos(initialSelectedPhotos);
       setAbordagem(data);
     } catch (error) {
       console.error('Erro ao carregar abordagem:', error);

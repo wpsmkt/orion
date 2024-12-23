@@ -56,7 +56,7 @@ export default function FormularioPessoa({ onSubmit, pessoa }: Props) {
     const files = event.target.files;
     if (files) {
       try {
-        const uploadedUrls = [];
+        const uploadedUrls: string[] = [];
         for (let i = 0; i < files.length; i++) {
           const file = files[i];
           const fileExt = file.name.split('.').pop();
@@ -64,18 +64,18 @@ export default function FormularioPessoa({ onSubmit, pessoa }: Props) {
           const filePath = `fotos/${fileName}`;
 
           // Upload do arquivo para o Supabase Storage
-          const { data, error } = await supabase.storage
+          const { error } = await supabase.storage
             .from('pessoas')
             .upload(filePath, file);
 
           if (error) throw error;
 
           // Gera URL pública do arquivo
-          const { data: { publicUrl } } = supabase.storage
+          const { data } = supabase.storage
             .from('pessoas')
             .getPublicUrl(filePath);
 
-          uploadedUrls.push(publicUrl);
+          uploadedUrls.push(data.publicUrl);
         }
 
         setFormData((prev) => ({

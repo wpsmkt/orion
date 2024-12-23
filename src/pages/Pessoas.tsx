@@ -5,14 +5,13 @@ import {
   Card,
   CardContent,
   Typography,
-  Avatar,
-  IconButton,
   TextField,
-  InputAdornment,
+  Avatar,
   useTheme,
   useMediaQuery,
+  CircularProgress,
+  InputAdornment,
   Fab,
-  Skeleton,
 } from '@mui/material';
 import {
   Search as SearchIcon,
@@ -53,11 +52,11 @@ export default function Pessoas() {
   const LoadingSkeleton = () => (
     <Card sx={{ mb: 2, borderRadius: 2 }}>
       <CardContent sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-        <Skeleton variant="circular" width={56} height={56} />
+        <CircularProgress size={24} />
         <Box sx={{ flexGrow: 1 }}>
-          <Skeleton variant="text" width="60%" height={24} />
-          <Skeleton variant="text" width="40%" height={20} />
-          <Skeleton variant="text" width="30%" height={20} />
+          <Typography variant="body1">
+            Carregando...
+          </Typography>
         </Box>
       </CardContent>
     </Card>
